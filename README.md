@@ -1,1 +1,1 @@
-# Data and Code will be uploaded soon
+# Unzip the all_data.zip file to get all data and implementation of this project
