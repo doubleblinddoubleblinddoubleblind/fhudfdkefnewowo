@@ -15,7 +15,7 @@ def random_flip(image, key):
 
 def random_crop(image, key, crop_size=32, padding=4):
     """Pad the image then randomly crop a patch of size (crop_size x crop_size)."""
-    # Pad with 4 pixels on each side using reflection (mimics PyTorch padding behavior)
+    # Pad with 4 pixels on each side using constant (mimics PyTorch padding behavior)
     image_padded = jnp.pad(image, ((padding, padding), (padding, padding), (0, 0)), mode='constant', constant_values=0)
     # The padded image has size 32+8=40; choose a random crop location in the padded image.
     max_offset = padding * 2  # 8
