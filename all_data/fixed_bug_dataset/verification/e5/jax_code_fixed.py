@@ -1,14 +1,23 @@
 import jax
-import jax.numpy as jnp  # MODIFIED: Ensured consistent import for jax.numpy as jnp
-from jax import random  # MODIFIED: Added necessary import for random functionality
+import jax.numpy as jnp
+from jax import random
+import optax  # FIXED: Added missing import
 from typing import Any, Tuple
 
 def init_params(key: Any) -> Any:
     keys = random.split(key, 4)
-    W1 = random.uniform(keys[0], shape=(2, 10), minval=-1.0, maxval=1.0)
-    b1 = random.uniform(keys[1], shape=(10,), minval=-1.0, maxval=1.0)
-    W2 = random.uniform(keys[2], shape=(10, 1), minval=-1.0, maxval=1.0)
-    b2 = random.uniform(keys[3], shape=(1,), minval=-1.0, maxval=1.0)
+    
+    # FIXED: Use Kaiming initialization bounds
+    # For layer 1 (2->10): bound = sqrt(1/fan_in) = sqrt(1/2)
+    bound1 = jnp.sqrt(1.0 / 2)
+    W1 = random.uniform(keys[0], shape=(2, 10), minval=-bound1, maxval=bound1)
+    b1 = random.uniform(keys[1], shape=(10,), minval=-bound1, maxval=bound1)
+    
+    # For layer 2 (10->1): bound = sqrt(1/fan_in) = sqrt(1/10)
+    bound2 = jnp.sqrt(1.0 / 10)
+    W2 = random.uniform(keys[2], shape=(10, 1), minval=-bound2, maxval=bound2)
+    b2 = random.uniform(keys[3], shape=(1,), minval=-bound2, maxval=bound2)
+    
     return {'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2}
 
 def predict(params: Any, inputs: jnp.ndarray) -> jnp.ndarray:
@@ -20,11 +29,6 @@ def predict(params: Any, inputs: jnp.ndarray) -> jnp.ndarray:
 def loss_fn(params: Any, inputs: jnp.ndarray, targets: jnp.ndarray) -> float:
     predictions = predict(params, inputs)
     return jnp.mean((predictions - targets) ** 2)
-
-def update(params, inputs, targets, lr):
-    grads = jax.grad(loss_fn)(params, inputs, targets)
-    new_params = {k: params[k] - lr * grads[k] for k in params}
-    return new_params
 
 def main() -> None:
     """Main entry point for the program."""
@@ -57,4 +61,4 @@ def main() -> None:
     print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
 
 if __name__ == "__main__":
-    main()  # Entry point for the program
+    main()

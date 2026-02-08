@@ -40,10 +40,10 @@ for epoch in range(epochs):
 
     # Log progress every 100 epochs
     if (epoch + 1) % 100 == 0:
-        print(f\"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}\")
+        print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
 
 # Testing on new data
 X_test = torch.tensor([[4.0, 3.0], [7.0, 8.0]])
 with torch.no_grad():
     predictions = model(X_test)
-    print(f\"Predictions for {X_test.tolist()}: {predictions.tolist()}\")
+    print(f"Predictions for {X_test.tolist()}: {predictions.tolist()}")
