@@ -562,7 +562,13 @@
 			"Error": "The PyTorch code uses optim.SGD(model.parameters(), lr=0.01), while the Adam optimizer is used here with a learning rate of 0.001",
 			"Fix_info": "Modified to use optax.sgd with a learning rate of 0.01",
 			"Fixed_Code": "optimizer = optax.sgd(0.01)"
-        }
+        },
+		{
+			"Error_Code": "print(f\"Predictions after training: {predictions}\")",
+			"Error": "Output message says 'Predictions after training' but PyTorch says 'Predictions after loading' to indicate the model was loaded from disk",
+			"Fix_info": "Change output message from 'after training' to 'after loading' to match PyTorch",
+			"Fixed_Code": "print(f\"Predictions after loading: {predictions}\")"
+		}
       ]
     },
 	{
@@ -765,7 +771,43 @@
 			"Error": "Missing the part of generating training data, training loop, and saving and loading models for prediction after training",
 			"Fix_info": "Use JAX's random function to generate X (uniform distribution) and noise (normal distribution), and then construct y = 3 * X + 2 + noise\nWrite a training loop to update the model parameters and periodically print the loss\nUse pickle to save the trained parameters to a file and then load it from the file",
 			"Fixed_Code": "def main():\n    key = random.PRNGKey(42)\n    \n    key, subkey1, subkey2 = random.split(key, 3)\n    params = {\n        'w': random.normal(subkey1, (1,)),\n        'b': random.normal(subkey2, (1,))\n    }\n    \n    key, subkey1, subkey2 = random.split(key, 3)\n    X = random.uniform(subkey1, (100, 1))\n    noise = random.normal(subkey2, (100, 1)) * 0.1\n    y = 3 * X + 2 + noise\n    \n    epochs = 100\n    for epoch in range(epochs):\n        params, loss = train_step(params, X, y, learning_rate=0.01)\n        if epoch % 10 == 0:\n            print(f\\\"Epoch {epoch}, Loss: {loss:.4f}\\\")\n    \n    with open(\\\"model.pth\\\", \\\"wb\\\") as f:\n        pickle.dump(params, f)\n    \n    with open(\\\"model.pth\\\", \\\"rb\\\") as f:\n        loaded_params = pickle.load(f)\n    \n    X_test = jnp.array([[0.5], [1.0], [1.5]])\n    predictions = model(loaded_params, X_test)\n    print(\\\"Predictions after loading:\\\", predictions)"
-        }
+        },
+		{
+			"Error_Code": "'w': random.normal(subkey1, (1,))",
+			"Error": "Weight shape is (1,) but should be (1, 1) to match PyTorch's nn.Linear(1, 1). Shape (1,) causes element-wise operations instead of matrix multiplication",
+			"Fix_info": "Change weight shape from (1,) to (1, 1) for proper matrix multiplication",
+			"Fixed_Code": "'w': random.uniform(subkey1, (1, 1), minval=-1.0, maxval=1.0)"
+		},
+		{
+			"Error_Code": "params = {'w': random.normal(subkey1, (1,)), 'b': random.normal(subkey2, (1,))}",
+			"Error": "PyTorch's nn.Linear uses Kaiming uniform initialization (uniform distribution with bound=sqrt(1/in_features)), not normal distribution. Using random.normal produces different initial values",
+			"Fix_info": "Use uniform initialization with Kaiming bounds where bound = sqrt(1/1) = 1.0",
+			"Fixed_Code": "bound = jnp.sqrt(1.0 / 1)\nparams = {\n    'w': random.uniform(subkey1, (1, 1), minval=-bound, maxval=bound),\n    'b': random.uniform(subkey2, (1,), minval=-bound, maxval=bound)\n}"
+		},
+		{
+			"Error_Code": "return params['w'] * x + params['b']",
+			"Error": "Uses element-wise multiplication (*) instead of matrix multiplication. PyTorch's nn.Linear uses matrix multiplication (torch.matmul or @)",
+			"Fix_info": "Use jnp.dot for matrix multiplication to match nn.Linear behavior",
+			"Fixed_Code": "return jnp.dot(x, params['w']) + params['b']"
+		},
+		{
+			"Error_Code": "def generate_random_numbers(shape):\n    return random.normal(key=random.PRNGKey(0), shape=shape)",
+			"Error": "Function generate_random_numbers is defined but never used in the code",
+			"Fix_info": "Remove the unused function definition",
+			"Fixed_Code": "# Remove this function"
+		},
+		{
+			"Error_Code": "if epoch % 10 == 0:\n    print(f\"Epoch {epoch}, Loss: {loss:.4f}\")",
+			"Error": "PyTorch code doesn't print training progress, but JAX code prints loss every 10 epochs",
+			"Fix_info": "Remove the training progress print statement to match PyTorch output",
+			"Fixed_Code": "# Remove this if block"
+		},
+		{
+			"Error_Code": "print(\"Predictions after loading:\", predictions)",
+			"Error": "Output format doesn't match PyTorch. PyTorch uses f-string format: f\"Predictions after loading: {predictions}\"",
+			"Fix_info": "Use f-string format to match PyTorch output",
+			"Fixed_Code": "print(f\"Predictions after loading: {predictions}\")"
+		}
       ]
     },
 	{
@@ -899,7 +941,25 @@
 			"Error": "The PyTorch code trains for 1000 epochs, while the JAX code only trains for 10 epochs",
 			"Fix_info": "Change num_epochs to 1000",
 			"Fixed_Code": "num_epochs = 1000"
-        }
+        },
+		{
+			"Error_Code": "key = random.PRNGKey(0)",
+			"Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0. This affects data generation, model initialization, and all random operations",
+			"Fix_info": "Change random seed from 0 to 42",
+			"Fixed_Code": "key = random.PRNGKey(42)"
+		},
+		{
+			"Error_Code": "for i in range(0, dataset_size, 32):\n    key, dropout_key = random.split(key)\n    batch = {\n        'X': X_shuffled[i:i + 32],\n        'y': y_shuffled[i:i + 32]\n    }\n    state, batch_loss = train_step(state, batch, dropout_key)\n    total_loss += batch_loss\n    num_batches += 1",
+			"Error": "JAX uses mini-batch training with batch_size=32 and shuffles data each epoch, but PyTorch uses full-batch training (processes all 100 samples in one forward pass). Mini-batch vs full-batch training produces completely different gradient updates and training dynamics",
+			"Fix_info": "Remove batching loop and shuffling. Process the entire dataset in one forward pass per epoch to match PyTorch",
+			"Fixed_Code": "batch = {'X': X, 'y': y}\nkey, dropout_key = random.split(key)\nstate, loss = train_step(state, batch, dropout_key)"
+		},
+		{
+			"Error_Code": "key, subkey = random.split(key)\nperm = random.permutation(subkey, dataset_size)\nX_shuffled = X[perm]\ny_shuffled = y[perm]",
+			"Error": "PyTorch doesn't shuffle data between epochs (uses the same X, y order every epoch), but JAX shuffles the dataset every epoch",
+			"Fix_info": "Remove data shuffling to match PyTorch behavior",
+			"Fixed_Code": "# Remove shuffling code - use X and y directly"
+		}
       ]
     },
 	{
@@ -979,7 +1039,31 @@
 			"Error": "The first initialization of real_data is redundant",
 			"Fix_info": "Remove redundant first initialization",
 			"Fixed_Code": "latent_dim = 10  # Dimensionality of the latent space\ndata_dim = 1     # Dimensionality of the data\n\nkey, subkey = random.split(key)\nreal_data = random.uniform(subkey, (100, data_dim), minval=-1, maxval=1)"
-        }
+        },
+		{
+			"Error_Code": "key = random.PRNGKey(0)",
+			"Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0. This affects real data generation, model initialization, and latent samples",
+			"Fix_info": "Change random seed from 0 to 42",
+			"Fixed_Code": "key = random.PRNGKey(42)"
+		},
+		{
+			"Error_Code": "real_data = random.uniform(subkey, (100, data_dim), minval=-1, maxval=1)",
+			"Error": "PyTorch uses torch.rand(100, 1) * 2 - 1 which generates uniform [0,1) then scales to [-1,1). JAX uses uniform(minval=-1, maxval=1) directly",
+			"Fix_info": "Match PyTorch's two-step process: generate uniform [0,1) then transform to [-1,1)",
+			"Fixed_Code": "real_data = random.uniform(subkey, (100, data_dim)) * 2 - 1"
+		},
+		{
+			"Error_Code": "fake_data = G.apply(G_params, latent_samples)",
+			"Error": "In discriminator training, PyTorch uses .detach() to stop gradients from flowing back to Generator. JAX should use jax.lax.stop_gradient for explicit gradient blocking",
+			"Fix_info": "Wrap fake_data in jax.lax.stop_gradient to match PyTorch's .detach() behavior",
+			"Fixed_Code": "fake_data = jax.lax.stop_gradient(G.apply(G_params, latent_samples))"
+		},
+		{
+			"Error_Code": "G_params = G.init(subkey, jnp.ones((1, latent_dim)))\nD_params = D.init(subkey, jnp.ones((1, data_dim)))",
+			"Error": "Flax's init() returns a dictionary with 'params' key, but code uses G_params directly in apply(). This may cause errors or require {'params': G_params} wrapper in apply calls",
+			"Fix_info": "Extract 'params' from init() result to match usage in apply() calls",
+			"Fixed_Code": "G_params = G.init(subkey, jnp.ones((1, latent_dim)))['params']\nD_params = D.init(subkey, jnp.ones((1, data_dim)))['params']"
+		}
       ]
     },
 	{
