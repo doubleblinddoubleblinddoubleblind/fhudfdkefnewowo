@@ -53,7 +53,31 @@
 			"Error": "In this training loop, no loss value for the current round is calculated, and no print statements are added to output log information",
 			"Fix_info": "In each epoch, first calculate the loss and gradient, then update the parameters, and print the log when the conditions are met",
 			"Fixed_Code": ""
-        }
+        },
+		{
+			"Error_Code": "key = random.PRNGKey(0)",
+			"Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0",
+			"Fix_info": "Change random seed from 0 to 42 to ensure reproducible results matching PyTorch",
+			"Fixed_Code": "key = random.PRNGKey(42)"
+		},
+		{
+			"Error_Code": "X = jnp.linspace(0, 10, num_samples).reshape(-1, 1)",
+			"Error": "PyTorch uses random uniform distribution (torch.rand), not evenly spaced values (linspace). This creates fundamentally different data.",
+			"Fix_info": "Use random.uniform to generate random data matching PyTorch's torch.rand behavior",
+			"Fixed_Code": "key, subkey = random.split(key)\n    X = random.uniform(subkey, shape=(num_samples, 1)) * 10"
+		},
+		{
+			"Error_Code": "bound = 1.0",
+			"Error": "PyTorch's nn.Linear uses initialization bound of sqrt(1/in_features) = sqrt(1) = 1.0, but the calculation should be explicit to match PyTorch's default initialization",
+			"Fix_info": "Calculate bound as sqrt(k) where k=1/in_features to match PyTorch's Kaiming initialization",
+			"Fixed_Code": "k = 1.0  # 1/in_features\n    bound = jnp.sqrt(k)  # Match PyTorch's default init"
+		},
+		{
+			"Error_Code": "key = random.PRNGKey(0)",
+			"Error": "Random seed in train_model should also be 42 to match PyTorch, not 0",
+			"Fix_info": "Change random seed from 0 to 42 for parameter initialization",
+			"Fixed_Code": "key = random.PRNGKey(42)"
+		}
       ]
     },
     {
@@ -79,6 +103,36 @@
 			"Error": "The current loss value is not returned in the training step, resulting in the inability to print log information to monitor the training process in the training loop",
 			"Fix_info": "Modify the train_step function to return the updated state and the loss value of the current batch",
 			"Fixed_Code": "grads = grad(loss_fn)(state.params)\nnew_state = state.apply_gradients(grads=grads)\nloss = loss_fn(state.params)\nreturn new_state, loss"
+        },
+		{
+            "Error_Code": "rng = random.PRNGKey(0)",
+            "Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0",
+            "Fix_info": "Change random seed from 0 to 42",
+            "Fixed_Code": "rng = random.PRNGKey(42)"
+        },
+        {
+            "Error_Code": "tx = optax.adam(learning_rate)",
+            "Error": "Optimizer should be SGD to match PyTorch's optim.SGD, not Adam",
+            "Fix_info": "Change optimizer from adam to sgd",
+            "Fixed_Code": "tx = optax.sgd(learning_rate)"
+        },
+        {
+            "Error_Code": "learning_rate = 0.001",
+            "Error": "Learning rate should be 0.01 to match PyTorch's lr=0.01, not 0.001",
+            "Fix_info": "Change learning rate from 0.001 to 0.01",
+            "Fixed_Code": "learning_rate = 0.01"
+        },
+        {
+            "Error_Code": "X, y = load_data('data.csv')",
+            "Error": "Missing data generation code. PyTorch generates synthetic data before loading, but JAX version only loads without generating",
+            "Fix_info": "Add data generation code before loading from CSV",
+            "Fixed_Code": "key = random.PRNGKey(42)\nkey, subkey = random.split(key)\nX_gen = random.uniform(subkey, shape=(100, 1)) * 10\nkey, subkey = random.split(key)\nnoise = random.normal(subkey, shape=(100, 1))\ny_gen = 2 * X_gen + 3 + noise\ndata = jnp.concatenate([X_gen, y_gen], axis=1)\ndf = pd.DataFrame(np.array(data), columns=['X', 'y'])\ndf.to_csv('data.csv', index=False)\nX, y = load_data('data.csv')"
+        },
+        {
+            "Error_Code": "np.random.shuffle(indices)",
+            "Error": "Shuffle should use JAX random with seeded key to match PyTorch's deterministic shuffle, not NumPy random",
+            "Fix_info": "Use JAX's random.permutation with a key parameter",
+            "Fixed_Code": "indices = random.permutation(key, indices)"
         }
       ]
     },
@@ -135,6 +189,18 @@
 			"Error": "Incorrectly passing PRNG key into model functions when plotting and testing",
 			"Fix_info": "The trained model parameters should be passed in to ensure consistent calls",
 			"Fixed_Code": "plt.figure(figsize=(4, 4))\nX_np = np.array(X)\ny_np = np.array(y)\nplt.scatter(X_np, y_np, label='Training Data')\n    \nX_line = np.linspace(0, 10, 100).reshape(-1, 1)\nplt.plot(X_line, learned_w * X_line + learned_b, 'r', label='Model Fit')\nplt.legend()\nplt.show()\n\nX_test = jnp.array([[4.0], [7.0]])\npredictions = model(params, X_test)\nprint(f\"Predictions for {np.array(X_test).tolist()}: {np.array(predictions).tolist()}\")"
+        },
+		{
+            "Error_Code": "key = jax.random.PRNGKey(0)",
+            "Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0",
+            "Fix_info": "Change random seed from 0 to 42",
+            "Fixed_Code": "key = jax.random.PRNGKey(42)"
+        },
+        {
+            "Error_Code": "plt.plot(X_line, learned_w * X_line + learned_b, 'r', label='Model Fit')",
+            "Error": "Plot shows only the linear component (w*X + b) but the model uses custom_activation which adds tanh(w*X + b). The plot should show the actual model output with the custom activation applied, not just the linear part",
+            "Fix_info": "Plot the actual model predictions with custom activation applied instead of just the linear component",
+            "Fixed_Code": "X_sorted = jnp.sort(X, axis=0)\npredictions_sorted = model(params, X_sorted)\nplt.plot(X_sorted, predictions_sorted, 'r', label='Model Fit')"
         }
       ]
     },
@@ -221,7 +287,19 @@
 			"Error": "Wrong test x cases",
 			"Fix_info": "Change to same as original code",
 			"Fixed_Code": "x = jnp.array([[4.0], [7.0]])"
-        }
+        },
+		{
+			"Error_Code": "key = random.PRNGKey(0)",
+			"Error": "Random seed should be 42 to match PyTorch's torch.manual_seed(42), not 0",
+			"Fix_info": "Change random seed from 0 to 42",
+			"Fixed_Code": "key = random.PRNGKey(42)"
+		},
+		{
+			"Error_Code": "print(f\"Trained weights: {model.params['w']}, bias: {model.params['b']}\")",
+			"Error": "Output format doesn't match PyTorch. PyTorch prints 'Learned weight: {scalar:.4f}, Learned bias: {scalar:.4f}' but JAX prints array objects",
+			"Fix_info": "Extract scalar values from arrays and format with 4 decimal places to match PyTorch output",
+			"Fixed_Code": "learned_w = model.params['w'][0, 0]\nlearned_b = model.params['b'][0]\nprint(f\"Learned weight: {learned_w:.4f}, Learned bias: {learned_b:.4f}\")"
+		}
       ]
     },
 	{
@@ -312,7 +390,25 @@
 			"Error": "The original PyTorch code uses the Adam optimizer, while the JAX code here only implements a simple gradient descent update.",
 			"Fix_info": "Use the optax library commonly used in the JAX ecosystem to implement the Adam optimizer",
 			"Fixed_Code": "import optax\n\n    optimizer = optax.adam(lr)\n    opt_state = optimizer.init(params)\n    \n    for epoch in range(epochs):\n        grads = jax.grad(loss_fn)(params, X, y)\n        updates, opt_state = optimizer.update(grads, opt_state)\n        params = optax.apply_updates(params, updates)\n        \n        if (epoch + 1) % 100 == 0:\n            current_loss = loss_fn(params, X, y)\n            print(f\"Epoch [{epoch+1}/{epochs}], Loss: {current_loss:.4f}\")"
-        }
+        },
+		{
+			"Error_Code": "optimizer = optax.adam(lr)",
+			"Error": "optax is used but not imported. This will cause NameError: name 'optax' is not defined",
+			"Fix_info": "Add import optax at the top of the file",
+			"Fixed_Code": "import optax"
+		},
+		{
+			"Error_Code": "W1 = random.uniform(keys[0], shape=(2, 10), minval=-1.0, maxval=1.0)\nb1 = random.uniform(keys[1], shape=(10,), minval=-1.0, maxval=1.0)",
+			"Error": "Weight initialization bounds don't match PyTorch's Kaiming initialization. PyTorch's nn.Linear(2, 10) uses bound = sqrt(1/fan_in) = sqrt(1/2) ≈ 0.707, not 1.0",
+			"Fix_info": "Calculate Kaiming initialization bound as sqrt(1/fan_in) where fan_in=2",
+			"Fixed_Code": "bound1 = jnp.sqrt(1.0 / 2)\nW1 = random.uniform(keys[0], shape=(2, 10), minval=-bound1, maxval=bound1)\nb1 = random.uniform(keys[1], shape=(10,), minval=-bound1, maxval=bound1)"
+		},
+		{
+			"Error_Code": "W2 = random.uniform(keys[2], shape=(10, 1), minval=-1.0, maxval=1.0)\nb2 = random.uniform(keys[3], shape=(1,), minval=-1.0, maxval=1.0)",
+			"Error": "Weight initialization bounds don't match PyTorch's Kaiming initialization. PyTorch's nn.Linear(10, 1) uses bound = sqrt(1/fan_in) = sqrt(1/10) ≈ 0.316, not 1.0",
+			"Fix_info": "Calculate Kaiming initialization bound as sqrt(1/fan_in) where fan_in=10",
+			"Fixed_Code": "bound2 = jnp.sqrt(1.0 / 10)\nW2 = random.uniform(keys[2], shape=(10, 1), minval=-bound2, maxval=bound2)\nb2 = random.uniform(keys[3], shape=(1,), minval=-bound2, maxval=bound2)"
+		}
       ]
     },
 	{
@@ -404,7 +500,25 @@
 			"Error": "Failure to call writer.close() may result in the log file not being written to disk correctly or resources not being released, which may affect the log viewing of TensorBoard.",
 			"Fix_info": "Call writer.close() after the training loop ends and before returning the arguments",
 			"Fixed_Code": "writer = SummaryWriter(log_dir=\"runs/linear_regression\")\n...\nwriter.close()\nreturn params"
-        }
+        },
+		{
+			"Error_Code": "key = jax.random.PRNGKey(0)",
+			"Error": "Random seed for model parameter initialization should be 42 to match PyTorch's torch.manual_seed(42), not 0. This affects weight and bias initialization",
+			"Fix_info": "Change the PRNGKey seed from 0 to 42 for model initialization",
+			"Fixed_Code": "key = jax.random.PRNGKey(42)"
+		},
+		{
+			"Error_Code": "self.w = self.param('w', nn.initializers.xavier_uniform(), (self.input_dim, 1))",
+			"Error": "PyTorch's nn.Linear uses Kaiming uniform initialization by default, but JAX code uses Xavier uniform initialization. These use different formulas and produce different initial weight distributions",
+			"Fix_info": "Change from xavier_uniform to kaiming_uniform to match PyTorch's nn.Linear default initialization",
+			"Fixed_Code": "self.w = self.param('w', nn.initializers.kaiming_uniform(), (self.input_dim, 1))"
+		},
+		{
+			"Error_Code": "if (epoch + 1) % 10 == 0:\n    current_loss = loss_fn(params, inputs, targets, model)\n    print(f\"Epoch [{epoch+1}/{num_epochs}], Loss: {current_loss:.4f}\")\n    writer.add_scalar(\"Loss/train\", current_loss, epoch)",
+			"Error": "TensorBoard logging happens only every 10 epochs (inside the if statement), but PyTorch logs to TensorBoard every epoch. This creates incomplete training logs",
+			"Fix_info": "Move loss calculation and TensorBoard logging outside the if statement to log every epoch, keep print statement inside if for every 10 epochs",
+			"Fixed_Code": "current_loss = loss_fn(params, inputs, targets, model)\nwriter.add_scalar(\"Loss/train\", float(current_loss), epoch)\n\nif (epoch + 1) % 10 == 0:\n    print(f\"Epoch [{epoch+1}/{num_epochs}], Loss: {current_loss:.4f}\")"
+		}
       ]
     },
 	{
