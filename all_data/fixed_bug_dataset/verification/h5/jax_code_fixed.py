@@ -52,8 +52,8 @@ class Decoder(nn.Module):
         self.fc_out = nn.Dense(self.output_dim)
 
     def __call__(self, decoder_input, encoder_outputs, hidden_state, cell_state):
-        # decoder_input: (batch,) 或 (batch, 1)
-        embedded = self.embedding(decoder_input)  # (batch, embed_dim) 或 (batch, 1, embed_dim)
+        # decoder_input: (batch,) or (batch, 1)
+        embedded = self.embedding(decoder_input)  # (batch, embed_dim) or (batch, 1, embed_dim)
         if embedded.ndim == 3:
             embedded = embedded.squeeze(1)  # (batch, embed_dim)
 
@@ -118,19 +118,20 @@ def create_train_state(rng, encoder, decoder, src_vocab_size, tgt_vocab_size, sr
 
 @partial(jax.jit, static_argnums=(1, 2))
 def train_step(state, encoder, decoder, src, tgt):
-    grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-    loss, grads = grad_fn(state.params, encoder, decoder, src, tgt)
+    # FIXED: Removed has_aux=True since loss_fn only returns loss
+    loss, grads = jax.value_and_grad(loss_fn)(state.params, encoder, decoder, src, tgt)
     state = state.apply_gradients(grads=grads)
     return state, loss
 
 
 def main():
-    # Example parameters
-    src_vocab_size = 1
-    tgt_vocab_size = 1
+    # FIXED: Changed vocabulary sizes from 1 to 20
+    src_vocab_size = 20
+    tgt_vocab_size = 20
     src_seq_length = 10
     tgt_seq_length = 12
-    batch_size = 1 
+    # FIXED: Changed batch_size from 1 to 16
+    batch_size = 16
     embed_dim = 32
     hidden_dim = 64
     num_layers = 2
@@ -145,32 +146,49 @@ def main():
     
     state = create_train_state(rng, encoder, decoder, src_vocab_size, tgt_vocab_size, src_seq_length)
     
-    epochs = 1000
+    # FIXED: Changed epochs from 1000 to 100
+    epochs = 100
     for epoch in range(epochs):
         rng, subkey = jax.random.split(rng)
         state, loss = train_step(state, encoder, decoder, src_data, tgt_data)
-        if (epoch + 1) % 100 == 0:
+        # FIXED: Changed logging frequency from every 100 to every 10 epochs
+        if (epoch + 1) % 10 == 0:
             print(f"Epoch [{epoch + 1}/{epochs}] - Loss: {loss:.4f}")
 
+    # Test the sequence-to-sequence model with new input
     test_input = jax.random.randint(rng, (1, src_seq_length), 0, src_vocab_size)
-    encoder_outputs, (enc_hidden, enc_cell) = encoder.apply(encoder.init(rng, test_input), test_input)
     
-    hidden_state = jnp.zeros((num_layers, 1, hidden_dim))
-    cell_state = jnp.zeros((num_layers, 1, hidden_dim))
+    # FIXED: Use trained encoder parameters instead of random initialization
+    encoder_outputs, (enc_hidden, enc_cell) = encoder.apply({'params': state.params['encoder']}, test_input)
     
-    decoder_input = jnp.array([0])  
-    decoder_variables = decoder.init(rng, decoder_input, encoder_outputs, hidden_state, cell_state)
+    hidden_state = enc_hidden
+    cell_state = enc_cell
+    
+    decoder_input = jnp.array([0])
     
     output_sequence = []
     
+    # FIXED: Use trained decoder parameters in decode_step
     @jax.jit
-    def decode_step(decoder_input, hidden_state, cell_state, variables, encoder_outputs):
-        output, new_hidden_state, new_cell_state = decoder.apply(variables, decoder_input, encoder_outputs, hidden_state, cell_state)
+    def decode_step(decoder_input, hidden_state, cell_state, decoder_params, encoder_outputs):
+        output, new_hidden_state, new_cell_state = decoder.apply(
+            {'params': decoder_params}, 
+            decoder_input, 
+            encoder_outputs, 
+            hidden_state, 
+            cell_state
+        )
         predicted = jnp.argmax(output, axis=1)
         return predicted, new_hidden_state, new_cell_state
     
     for _ in range(tgt_seq_length):
-        predicted, hidden_state, cell_state = decode_step(decoder_input, hidden_state, cell_state, decoder_variables, encoder_outputs)
+        predicted, hidden_state, cell_state = decode_step(
+            decoder_input, 
+            hidden_state, 
+            cell_state, 
+            state.params['decoder'],  # FIXED: Use trained parameters
+            encoder_outputs
+        )
         output_sequence.append(int(predicted.item()))
         decoder_input = predicted
     
