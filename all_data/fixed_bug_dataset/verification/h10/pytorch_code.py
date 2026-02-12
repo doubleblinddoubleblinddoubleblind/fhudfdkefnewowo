@@ -26,7 +26,7 @@ def save_activations(module, input, output):
 # Attach hooks to the target layer
 target_layer = model.layer4[1].conv2
 target_layer.register_backward_hook(save_gradients)
-target_layer.register_forward_hook(save_gradations)
+target_layer.register_forward_hook(save_activations)
 
 # Fetch a sample image from torchvision datasets
 dataset = datasets.FakeData(transform=transforms.Compose([
